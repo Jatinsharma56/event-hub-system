@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>EventHub — Smart Event Management System</title>
+  <meta name="description" content="Smart Event Management System for colleges — register, scan QR, track attendance, and get AI insights.">
+
+  <!-- ─── STYLES ─── -->
+  <link rel="stylesheet" href="css/style.css">
+
+  <!-- ─── FONTS (loaded async via CSS @import) ─── -->
+
+  <!-- ─── EXTERNAL LIBRARIES ─── -->
+
+  <!-- QR Code Generator -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+
+  <!-- jsQR (QR Scanner) -->
+  <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
+
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+
+  <!-- Chart.js defaults -->
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      Chart.defaults.color = '#8891a8';
+      Chart.defaults.font.family = 'DM Sans';
+    });
+  </script>
+</head>
+<body>
+
+  <!-- ─── NAVIGATION ─── -->
+  <nav class="nav" id="main-nav">
+    <!-- Dynamically populated by updateNav() -->
+    <div class="nav-brand">⚡ Event<span>Hub</span></div>
+    <div></div>
+    <div class="nav-user">
+      <button class="btn btn-ghost btn-sm" onclick="Router.navigate('login')">Sign In</button>
+    </div>
+  </nav>
+
+  <!-- ─── APP ROOT ─── -->
+  <div id="app">
+    <!-- Pages rendered here by Router -->
+    <div style="display:flex;align-items:center;justify-content:center;height:100vh">
+      <div class="spinner"></div>
+    </div>
+  </div>
+
+  <!-- ─── TOAST CONTAINER ─── -->
+  <div class="toast-container" id="toast-container"></div>
+
+  <!-- =============================================
+       MODALS
+       All modals are defined here, toggled by JS
+       ============================================= -->
+
+  <!-- EVENT DETAIL MODAL -->
+  <div class="modal-overlay" id="event-detail-modal">
+    <div class="modal modal-large">
+      <div class="modal-header">
+        <div class="modal-title">Event Details</div>
+        <button class="modal-close" onclick="Modal.close('event-detail-modal')">✕</button>
+      </div>
+      <div id="event-detail-content"><!-- Populated by viewEvent() --></div>
+    </div>
+  </div>
+
+  <!-- REGISTRATION MODAL -->
+  <div class="modal-overlay" id="register-modal">
+    <div class="modal">
+      <div class="modal-header">
+        <div>
+          <div class="modal-title">Register for Event</div>
+          <div class="text-sm text-muted" id="reg-event-name">—</div>
+        </div>
+        <button class="modal-close" onclick="Modal.close('register-modal')">✕</button>
+      </div>
+      <input type="hidden" id="reg-event-id">
+      <div class="form-group">
+        <label class="form-label">Full Name *</label>
+        <input type="text" class="form-control" id="reg-name" placeholder="Your full name">
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Roll Number *</label>
+          <input type="text" class="form-control" id="reg-roll" placeholder="Your college roll number">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Email Address *</label>
+          <input type="email" class="form-control" id="reg-email-val" placeholder="yourname@gmail.com">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Department *</label>
+          <select class="form-control" id="reg-department">
+            <option value="">Select Department</option>
+            <option>BCA</option>
+            <option>BTech CSE</option>
+            <option>Nursing</option>
+            <option>Pharmacy</option>
+            <option>Other</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Year</label>
+          <select class="form-control">
+            <option>1st Year</option>
+            <option>2nd Year</option>
+            <option>3rd Year</option>
+            <option>4th Year</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Category *</label>
+        <div class="radio-group">
+          <label class="radio-option" onclick="selectRegCat(this,'Day Scholar')">
+            <input type="radio" name="reg-cat"> 🏠 Day Scholar
+          </label>
+          <label class="radio-option" onclick="selectRegCat(this,'Hosteller')">
+            <input type="radio" name="reg-cat"> 🏢 Hosteller
+          </label>
+        </div>
+        <input type="hidden" id="reg-category">
+      </div>
+      <div style="display:flex;gap:0.75rem;justify-content:flex-end;margin-top:1rem">
+        <button class="btn btn-ghost" onclick="Modal.close('register-modal')">Cancel</button>
+        <button class="btn btn-primary" onclick="submitRegistration()">Confirm Registration →</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MY REGISTRATION QR MODAL -->
+  <div class="modal-overlay" id="my-reg-modal">
+    <div class="modal modal-large">
+      <div class="modal-header">
+        <div class="modal-title">My Registration</div>
+        <button class="modal-close" onclick="Modal.close('my-reg-modal')">✕</button>
+      </div>
+      <div id="my-reg-content"><!-- Populated by viewMyRegistration() --></div>
+    </div>
+  </div>
+
+  <!-- CREATE / EDIT EVENT MODAL (Admin) -->
+  <div class="modal-overlay" id="event-modal">
+    <div class="modal modal-large">
+      <div class="modal-header">
+        <div class="modal-title" id="event-modal-title">Create Event</div>
+        <button class="modal-close" onclick="Modal.close('event-modal')">✕</button>
+      </div>
+      <form id="event-form" onsubmit="return false">
+        <input type="hidden" id="ev-id">
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Event Name *</label>
+            <input type="text" class="form-control" id="ev-name" placeholder="e.g. TechFest Hackathon 2025" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Presenting Club</label>
+            <input type="text" class="form-control" id="ev-club" placeholder="e.g. Google Developer Student Club">
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Date *</label>
+            <input type="date" class="form-control" id="ev-date" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Time *</label>
+            <input type="time" class="form-control" id="ev-time" required>
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Location *</label>
+          <input type="text" class="form-control" id="ev-location" placeholder="e.g. Main Auditorium, Block A" required>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Description</label>
+          <textarea class="form-control" id="ev-desc" rows="3" placeholder="Event details, rules, requirements…"></textarea>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Cover Photo</label>
+            <div style="display:flex;gap:0.5rem">
+              <input type="text" class="form-control" id="ev-cover" placeholder="URL or upload →">
+              <input type="file" id="ev-cover-file" style="display:none" onchange="uploadFile(this, 'ev-cover')">
+              <button class="btn btn-secondary btn-icon" onclick="document.getElementById('ev-cover-file').click()" title="Upload from computer">📁</button>
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Club Logo</label>
+            <div style="display:flex;gap:0.5rem">
+              <input type="text" class="form-control" id="ev-logo" placeholder="URL or upload →">
+              <input type="file" id="ev-logo-file" style="display:none" onchange="uploadFile(this, 'ev-logo')">
+              <button class="btn btn-secondary btn-icon" onclick="document.getElementById('ev-logo-file').click()" title="Upload from computer">📁</button>
+            </div>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Category *</label>
+            <select class="form-control" id="ev-category" required>
+              <option value="">Select Category</option>
+              <option>Tech</option>
+              <option>Cultural</option>
+              <option>Sports</option>
+              <option>Workshop</option>
+              <option>Seminar</option>
+              <option>Other</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Seat Limit</label>
+            <input type="number" class="form-control" id="ev-seats" value="100" min="1">
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Registration Deadline</label>
+            <input type="date" class="form-control" id="ev-deadline">
+          </div>
+          <div class="form-group" style="display:flex;align-items:flex-end;padding-bottom:1.25rem">
+            <label class="checkbox-label">
+              <input type="checkbox" id="ev-registration" checked>
+              <span class="custom-checkbox">✓</span>
+              Registration Open
+            </label>
+          </div>
+        </div>
+        <div style="display:flex;gap:0.75rem;justify-content:flex-end">
+          <button class="btn btn-ghost" onclick="Modal.close('event-modal')">Cancel</button>
+          <button class="btn btn-primary" onclick="saveEvent()">Save Event →</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- FEEDBACK MODAL -->
+  <div class="modal-overlay" id="feedback-modal">
+    <div class="modal">
+      <div class="modal-header">
+        <div>
+          <div class="modal-title">Leave Feedback</div>
+          <div class="text-sm text-muted" id="fb-event-name">—</div>
+        </div>
+        <button class="modal-close" onclick="Modal.close('feedback-modal')">✕</button>
+      </div>
+      <input type="hidden" id="fb-event-id">
+      <div class="form-group">
+        <label class="form-label">Your Rating</label>
+        <div class="star-rating">
+          <span class="star" data-rating="1">★</span>
+          <span class="star" data-rating="2">★</span>
+          <span class="star" data-rating="3">★</span>
+          <span class="star" data-rating="4">★</span>
+          <span class="star" data-rating="5">★</span>
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Your Comment (optional)</label>
+        <textarea class="form-control" id="fb-comment" rows="3" placeholder="Share your experience…"></textarea>
+      </div>
+      <div style="display:flex;gap:0.75rem;justify-content:flex-end">
+        <button class="btn btn-ghost" onclick="Modal.close('feedback-modal')">Cancel</button>
+        <button class="btn btn-primary" onclick="submitFeedback()">Submit Feedback →</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─── APPLICATION SCRIPTS ─── -->
+  <script src="js/store.js"></script>
+  <script src="js/app.js"></script>
+  <script src="js/pages.js"></script>
+
+  <!-- ─── RADIO HELPERS ─── -->
+  <script>
+    function selectRegCat(el, val) {
+      document.querySelectorAll('.radio-option[onclick*="selectRegCat"]').forEach(o => o.classList.remove('selected'));
+      el.classList.add('selected');
+      document.getElementById('reg-category').value = val;
+    }
+  </script>
+
+  <!-- ─── ROUTER INIT ─── -->
+  <script>
+    // Router is initialized by Store.init() after data is fetched from backend
+    // Handle back button
+    window.addEventListener('hashchange', () => {
+      const hash = window.location.hash.replace('#', '');
+      if (hash) Router.render(hash);
+    });
+  </script>
+
+</body>
+</html>
