@@ -5,8 +5,11 @@ const Event = require('../models/Event');
 // @route   POST /api/registrations
 const registerForEvent = async (req, res) => {
   try {
-    const { eventId, userName, roll, department, category } = req.body;
-    const userId = req.user._id;
+    const { eventId, userName, roll, email, department, category } = req.body;
+
+    if (!eventId || !userName || !roll || !department || !category) {
+      return res.status(400).json({ message: 'Please fill all required fields' });
+    }
 
     const event = await Event.findById(eventId);
     if (!event) return res.status(404).json({ message: 'Event not found' });
@@ -18,15 +21,12 @@ const registerForEvent = async (req, res) => {
       return res.status(400).json({ message: 'Event is full' });
     }
 
-    // Check duplicate by user or roll
-    const existingUserReg = await Registration.findOne({ eventId, userId });
-    if (existingUserReg) return res.status(400).json({ message: 'You are already registered for this event' });
-
+    // Check duplicate by roll number only (no login required)
     const existingRollReg = await Registration.findOne({ eventId, roll });
     if (existingRollReg) return res.status(400).json({ message: 'This Roll Number is already registered for this event' });
 
     const registration = new Registration({
-      eventId, userId, userName, roll, department, category
+      eventId, userName, roll, email, department, category
     });
 
     const createdReg = await registration.save();

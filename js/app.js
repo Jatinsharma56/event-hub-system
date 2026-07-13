@@ -8,7 +8,7 @@
 // =============================================
 // TOAST NOTIFICATION SYSTEM
 // =============================================
-const Toast = {
+window.Toast = {
   container: null,
   init() {
     this.container = document.getElementById('toast-container');
@@ -42,7 +42,7 @@ const Toast = {
 // =============================================
 // MODAL MANAGER
 // =============================================
-const Modal = {
+window.Modal = {
   open(id) {
     const el = document.getElementById(id);
     if (el) { el.classList.add('open'); document.body.style.overflow = 'hidden'; }
@@ -89,9 +89,10 @@ function generateQR(containerId, text, options = {}) {
 // PAGE ROUTER
 // Single-page app navigation
 // =============================================
-const Router = {
+window.Router = {
   current: null,
   pages: {},
+  _rendering: false, // Guard against recursive render calls
 
   register(name, renderFn) { this.pages[name] = renderFn; },
 
@@ -102,23 +103,35 @@ const Router = {
   },
 
   render(page, params = {}) {
-    const user = Auth.current();
-
-    // Auth guard
-    if (!user && page !== 'login' && page !== 'register') {
-      this.render('login');
+    // Guard: prevent recursive render calls (stack overflow protection)
+    if (this._rendering) {
+      console.warn('Router.render called recursively for page:', page, '— skipping');
       return;
     }
-    if (user && (page === 'login' || page === 'register')) {
-      this.render(user.role === 'admin' ? 'admin-dashboard' : 'events');
-      return;
+    this._rendering = true;
+    try {
+      this._doRender(page, params);
+    } finally {
+      this._rendering = false;
+    }
+  },
+
+  _doRender(page, params = {}) {
+    const user = Auth.current();
+
+    // Public pages: guests can view events without logging in
+    const publicPages = ['landing', 'login', 'register', 'events', 'trending', 'saved-events'];
+
+    // Auth guard — only redirect to login for protected pages
+    if (!user && !publicPages.includes(page)) {
+      Toast.warning('Please sign in to access that page');
+      page = 'login';
     }
 
     // Admin guard
     if (page.startsWith('admin-') && user && user.role !== 'admin') {
       Toast.error('Admin access required');
-      this.render('events');
-      return;
+      page = 'events';
     }
 
     this.current = page;
@@ -127,15 +140,18 @@ const Router = {
       renderFn(params);
       updateNav(page, user);
     } else {
-      this.render(user ? (user.role === 'admin' ? 'admin-dashboard' : 'events') : 'login');
+      // Fallback: go to a known-good page
+      const fallback = user ? (user.role === 'admin' ? 'admin-dashboard' : 'events') : 'events';
+      if (fallback !== page) {
+        this._doRender(fallback, {});
+      }
     }
   },
 
   init() {
     const hash = window.location.hash.replace('#', '') || '';
-    const user  = Auth.current();
     if (!hash || hash === '') {
-      this.render(user ? (user.role === 'admin' ? 'admin-dashboard' : 'events') : 'login');
+      this.render('landing');
     } else {
       this.render(hash);
     }
@@ -149,42 +165,49 @@ function updateNav(page, user) {
   const nav = document.getElementById('main-nav');
   if (!nav) return;
 
+  // For the landing page, we want a very minimal or transparent header
+  const isLanding = page === 'landing';
+  if (isLanding) {
+    nav.classList.add('nav-transparent');
+  } else {
+    nav.classList.remove('nav-transparent');
+  }
+
   if (!user) {
     nav.innerHTML = `
-      <div class="nav-brand">⚡ Event<span>Hub</span></div>
-      <div></div>
+      <div class="nav-brand" style="cursor:pointer" onclick="Router.navigate('landing')">⚡ Event<span>Hub</span></div>
+      <div class="nav-links">
+        ${isLanding ? '' : `<button class="nav-link ${page === 'events' ? 'active' : ''}" onclick="Router.navigate('events')">🗓 Events Gallery</button>`}
+      </div>
       <div class="nav-user">
-        <button class="btn btn-ghost btn-sm" onclick="Router.navigate('login')">Sign In</button>
-        <button class="btn btn-primary btn-sm" onclick="Router.navigate('register')">Register</button>
+        <button class="btn btn-primary btn-sm" onclick="Router.navigate('login')">🔐 Admin Portal</button>
       </div>`;
     return;
   }
 
+  // When logged in, the sidebar handles navigation. Top bar is for user profile and notifications.
   const isAdmin = user.role === 'admin';
-  const adminLinks = isAdmin ? `
-    <button class="nav-link ${page === 'admin-dashboard' ? 'active' : ''}" onclick="Router.navigate('admin-dashboard')">📊 Dashboard</button>
-    <button class="nav-link ${page === 'admin-events' ? 'active' : ''}" onclick="Router.navigate('admin-events')">🗓 Events</button>
-    <button class="nav-link ${page === 'admin-registrations' ? 'active' : ''}" onclick="Router.navigate('admin-registrations')">📋 Registrations</button>
-    <button class="nav-link ${page === 'scanner' ? 'active' : ''}" onclick="Router.navigate('scanner')">📷 Scanner</button>
-  ` : `
-    <button class="nav-link ${page === 'events' ? 'active' : ''}" onclick="Router.navigate('events')">🗓 Events</button>
-    <button class="nav-link ${page === 'my-events' ? 'active' : ''}" onclick="Router.navigate('my-events')">🎫 My Events</button>
-  `;
-
+  
   // Count unread notifications
   const notifs = Store.getNotifications(user.id);
   const unread  = notifs.filter(n => !n.read).length;
 
   nav.innerHTML = `
-    <div class="nav-brand" style="cursor:pointer" onclick="Router.navigate('${isAdmin ? 'admin-dashboard' : 'events'}')">⚡ Event<span>Hub</span></div>
-    <div class="nav-links">${adminLinks}</div>
+    <div class="nav-brand" style="cursor:pointer" onclick="Router.navigate('landing')">⚡ Event<span>Hub</span></div>
+    <div class="nav-links">
+      <!-- Links removed for cleaner UI, handled by Sidebar -->
+    </div>
     <div class="nav-user">
-      <button class="nav-link" title="Notifications" onclick="Router.navigate('notifications')" style="position:relative">
-        🔔${unread > 0 ? `<span style="position:absolute;top:2px;right:2px;background:var(--red);color:#fff;font-size:9px;font-weight:700;border-radius:50%;width:14px;height:14px;display:flex;align-items:center;justify-content:center">${unread}</span>` : ''}
+      <button class="nav-link" title="Notifications" onclick="Router.navigate('notifications')" style="position:relative; background:rgba(255,255,255,0.03); width:40px; height:40px; border-radius:50%; display:flex; align-items:center; justify-content:center">
+        🔔${unread > 0 ? `<span style="position:absolute;top:0;right:0;background:var(--red);color:#fff;font-size:9px;font-weight:700;border-radius:50%;width:16px;height:16px;display:flex;align-items:center;justify-content:center;border:2px solid var(--bg)">${unread}</span>` : ''}
       </button>
-      <span class="user-badge">${isAdmin ? '👑 Admin' : '🎓 Student'}</span>
-      <button class="nav-link" onclick="Router.navigate('profile')">👤 ${user.name.split(' ')[0]}</button>
-      <button class="btn btn-ghost btn-sm" onclick="logout()">Sign Out</button>
+      <div style="display:flex;align-items:center;gap:0.75rem;background:rgba(255,255,255,0.05);padding:0.4rem 1rem;border-radius:30px;border:1px solid var(--border); transition: var(--transition); cursor:pointer" onclick="Router.navigate('profile')">
+         <div style="width:24px;height:24px;background:var(--accent-gradient);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:0.7rem;color:#000;font-weight:800">
+           ${user.name.charAt(0)}
+         </div>
+         <span style="font-size:0.85rem;font-weight:700;color:#fff">${user.name.split(' ')[0]}</span>
+      </div>
+      <button class="btn btn-ghost btn-sm" onclick="logout()" style="opacity:0.6; font-size:0.75rem">Sign Out</button>
     </div>`;
 }
 
@@ -194,7 +217,7 @@ function updateNav(page, user) {
 function logout() {
   Auth.logout();
   Toast.info('Signed out successfully');
-  Router.navigate('login');
+  Router.navigate('events'); // Guests go to events
 }
 
 // =============================================
@@ -223,13 +246,37 @@ function getSeatInfo(event) {
 // =============================================
 // EVENT CARD RENDERER
 // =============================================
-function renderEventCard(event, isAdmin = false, showRegister = true) {
-  const { taken, limit, pct, avail } = getSeatInfo(event);
-  const past     = isPast(event.date);
-  const fillClass = pct >= 100 ? 'full' : pct >= 80 ? 'warn' : '';
+function renderEventCard(event, isAdmin = false) {
+  const catClass = `cat-${event.category?.toLowerCase() || 'other'}`;
+  const taken    = Store.getRegistrationsByEvent(event.id).length;
+  const limit    = event.seatLimit || 100;
+  const pct      = Math.min(100, (taken / limit) * 100);
+  const avail    = limit - taken;
+  
+  // Status & Deadline Logic
+  const now = new Date();
+  const eventDate = new Date(event.date);
+  const deadlineDate = event.deadline ? new Date(event.deadline) : null;
+  
+  let status = event.statusOverride || 'Auto';
+  if (status === 'Auto') {
+    const today = new Date(); today.setHours(0,0,0,0);
+    const eventDay = new Date(eventDate); eventDay.setHours(0,0,0,0);
+    if (eventDay.getTime() === today.getTime()) status = 'Ongoing';
+    else if (eventDay < today) status = 'Past';
+    else status = 'Upcoming';
+  }
+  
+  const isPastStatus = status === 'Past';
+  const isOngoing    = status === 'Ongoing';
+  const deadlinePassed = deadlineDate && new Date() > deadlineDate.setHours(23, 59, 59, 999);
   const dateStr  = formatDate(event.date);
-  const timeStr  = formatTime(event.time);
-  const catClass = getCategoryBadgeClass(event.category);
+
+  const defaultCover = 'https://images.unsplash.com/photo-1501281668745-f7f57925c3b4?auto=format&fit=crop&q=80&w=1200';
+  const defaultLogo  = '/assets/vibin-z-logo.png';
+  
+  const coverImg = event.coverPhoto || defaultCover;
+  const logoImg  = event.clubLogo || defaultLogo;
   const user     = Auth.current();
 
   let alreadyReg = false;
@@ -237,38 +284,92 @@ function renderEventCard(event, isAdmin = false, showRegister = true) {
     alreadyReg = !!Store.findRegistration(user.id, event.id);
   }
 
-  const actionBtn = isAdmin
-    ? `<div style="display:flex;gap:0.5rem">
-        <button class="btn btn-secondary btn-sm" onclick="editEvent('${event.id}')">✏️ Edit</button>
-        <button class="btn btn-danger btn-sm" onclick="deleteEvent('${event.id}')">🗑</button>
-       </div>`
-    : alreadyReg
-      ? `<button class="btn btn-success btn-sm" onclick="viewMyRegistration('${event.id}')">✅ Registered</button>`
-      : (!event.registrationOpen || avail <= 0 || past)
-        ? `<button class="btn btn-ghost btn-sm" disabled>${avail <= 0 ? '🚫 Full' : past ? '⏰ Ended' : '🔒 Closed'}</button>`
-        : `<button class="btn btn-primary btn-sm" onclick="openRegisterModal('${event.id}')">Register Now →</button>`;
+  let actionBtn = '';
+  if (isAdmin) {
+    actionBtn = `
+      <div style="display:flex;flex-direction:column;gap:0.75rem">
+        <button class="btn ${event.registrationOpen ? 'btn-secondary' : 'btn-primary'}" style="width:100%;font-size:0.8rem;padding:0.75rem" onclick="toggleRegistration('${event.id}', ${!event.registrationOpen})">
+          ${event.registrationOpen ? '🛑 Stop Registration' : '🚀 Start Registration'}
+        </button>
+        <div style="display:flex;gap:0.75rem">
+          <button class="btn btn-primary btn-sm" style="flex:1" onclick="editEvent('${event.id}')">Edit</button>
+          <button class="btn btn-secondary btn-sm" style="flex:1;background:rgba(239,68,68,0.1);color:#ef4444;border-color:rgba(239,68,68,0.2)" onclick="deleteEvent('${event.id}')">Delete</button>
+        </div>
+      </div>`;
+  } else if (isPastStatus) {
+    actionBtn = `<button class="btn btn-secondary" disabled style="width:100%;opacity:0.3">Closed</button>`;
+  } else if (alreadyReg) {
+    actionBtn = `<button class="btn btn-primary" style="background:#22c55e;color:#fff;width:100%" onclick="viewMyRegistration('${event.id}')">✓ Registered</button>`;
+  } else if (!event.registrationOpen || avail <= 0 || deadlinePassed) {
+    let reason = 'Closed';
+    if (avail <= 0) reason = 'Event Full';
+    else if (deadlinePassed) reason = 'Deadline Passed';
+    actionBtn = `<button class="btn btn-secondary" disabled style="width:100%">${reason}</button>`;
+  } else {
+    actionBtn = `<button class="btn btn-primary" style="width:100%" onclick="openRegisterModal('${event.id}')">Join Event →</button>`;
+  }
+
+  // Badges
+  const pinnedBadge = event.isPinned ? `
+    <div style="position:absolute;top:1.25rem;right:1.25rem;z-index:10;background:var(--accent);color:#000;padding:0.4rem 0.8rem;border-radius:20px;font-size:0.65rem;font-weight:900;display:flex;align-items:center;gap:0.4rem;box-shadow:0 10px 20px rgba(0,0,0,0.3)">
+      <span>⭐</span> FEATURED
+    </div>` : '';
+
+  const ongoingBadge = isOngoing ? `
+    <div style="position:absolute;bottom:1.25rem;right:1.25rem;z-index:10;background:#ef4444;color:#fff;padding:0.4rem 0.8rem;border-radius:20px;font-size:0.65rem;font-weight:900;display:flex;align-items:center;gap:0.4rem;box-shadow:0 10px 20px rgba(0,0,0,0.3)">
+      <span class="pulse-dot"></span> LIVE NOW
+    </div>` : '';
 
   return `
-    <div class="event-card fade-in" onclick="viewEvent('${event.id}')">
-      <div class="event-card-banner" style="${event.coverPhoto ? `background-image:url('${event.coverPhoto}');background-size:cover;background-position:center;background-repeat:no-repeat;` : `background:${event.bannerColor || 'var(--bg-elevated)'};`}">
-        ${event.coverPhoto ? '' : `<span class="event-emoji">${event.emoji || '📅'}</span>`}
-        ${event.clubLogo ? `<img src="${event.clubLogo}" class="club-logo-overlay" alt="Logo">` : ''}
-        <span class="event-card-badge ${catClass}">${event.category}</span>
-        ${past ? '<span class="event-card-badge" style="left:0.75rem;right:auto;background:rgba(0,0,0,0.6);color:#aaa">Completed</span>' : ''}
+    <div class="event-card fade-in" style="${isPastStatus ? 'filter:grayscale(1);opacity:0.6' : ''}">
+      <div class="event-card-banner" style="background-image:linear-gradient(to right, transparent 40%, rgba(10,10,10,0.55) 100%), url('${coverImg}');background-size:cover;background-position:center top;">
+        ${pinnedBadge}
+        ${ongoingBadge}
+        ${!isAdmin ? `
+        <button class="bookmark-btn ${Bookmarks.isBookmarked(event.id) ? 'saved' : ''}"
+          title="${Bookmarks.isBookmarked(event.id) ? 'Remove from Saved' : 'Save Event'}"
+          onclick="event.stopPropagation(); toggleBookmark('${event.id}', this)"
+          id="bookmark-${event.id}">
+          ${Bookmarks.isBookmarked(event.id) ? '❤️' : '🤍'}
+        </button>` : ''}
+        <div style="position:absolute;top:1.25rem;left:1.25rem;display:flex;align-items:center;gap:1rem;z-index:10">
+          <div style="width:52px;height:52px;background:#fff;border:2px solid var(--accent);border-radius:18px;display:flex;align-items:center;justify-content:center;overflow:hidden;box-shadow:0 15px 30px rgba(0,0,0,0.5);transform:rotate(-2deg)">
+            <img src="${logoImg}" style="width:85%;height:85%;object-fit:contain">
+          </div>
+          <div style="background:rgba(0,0,0,0.7);backdrop-filter:blur(12px);padding:0.5rem 1rem;border-radius:10px;border:1px solid var(--border-bright)">
+            <div style="font-size:0.6rem;font-weight:800;color:var(--accent);letter-spacing:0.1em;margin-bottom:0.1rem">OFFICIAL</div>
+            <div style="font-size:0.75rem;font-weight:700;color:#fff">${event.category}</div>
+          </div>
+        </div>
+        <div class="event-card-details">
+          <div style="font-size:1.5rem;margin-bottom:1rem">${event.emoji || '📅'}</div>
+          <div style="font-size:0.65rem;font-weight:800;color:var(--accent);letter-spacing:0.2em;text-transform:uppercase">Premium Event</div>
+        </div>
       </div>
       <div class="event-card-body">
-        <div class="event-card-title">${event.name}</div>
-        ${event.club ? `<div class="text-xs text-accent" style="margin-top:-0.2rem;margin-bottom:0.4rem;font-weight:600;opacity:0.8">By ${event.club}</div>` : ''}
-        <div class="event-meta">
-          <div class="event-meta-item"><span class="icon">📅</span>${dateStr}</div>
-          <div class="event-meta-item"><span class="icon">🕐</span>${timeStr}</div>
-          <div class="event-meta-item"><span class="icon">📍</span>${event.location}</div>
+        <div style="display:flex;align-items:center;gap:0.75rem;margin-bottom:1rem">
+          <img src="${logoImg}" style="width:24px;height:24px;border-radius:50%;object-fit:cover;border:1px solid var(--border-bright)">
+          <div style="font-size:0.75rem;font-weight:800;color:var(--accent);text-transform:uppercase;letter-spacing:0.2em">${event.club || 'VIBIN.Z'}</div>
         </div>
-        <div class="event-card-footer" onclick="event.stopPropagation()">
-          <div class="seat-info" style="display:flex;flex-direction:column;gap:4px">
-            <div style="font-weight:600;color:var(--text)">Total Registered: ${taken}</div>
-            <div style="font-size:0.75rem">${avail} / ${limit} seats left</div>
-            <div class="seat-bar"><div class="seat-fill ${fillClass}" style="width:${pct}%"></div></div>
+        <div class="event-card-title">${event.name}</div>
+        <p style="color:var(--text-secondary);margin-bottom:2rem;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden">${event.description || 'Join us for a world-class experience.'}</p>
+        <div style="display:flex;flex-direction:column;gap:1rem;margin-bottom:2rem;padding:1.5rem;background:rgba(255,255,255,0.02);border-radius:16px;border:1px solid rgba(255,255,255,0.05)">
+          <div style="display:flex;align-items:center;gap:1rem">
+            <div style="font-size:0.65rem;font-weight:800;color:var(--text-muted);width:80px">DATE</div>
+            <div style="font-weight:700;font-size:1.05rem">📅 ${dateStr}</div>
+          </div>
+          <div style="display:flex;align-items:center;gap:1rem">
+            <div style="font-size:0.65rem;font-weight:800;color:var(--text-muted);width:80px">LOCATION</div>
+            <div style="font-weight:700;font-size:1.05rem;line-height:1.4">📍 ${event.location}</div>
+          </div>
+        </div>
+        <div style="margin-top:auto">
+          <div style="display:flex;justify-content:space-between;font-size:0.8rem;font-weight:700;margin-bottom:0.75rem">
+             <span style="color:var(--text-secondary);letter-spacing:0.05em">REGISTRATION PROGRESS</span>
+             <span style="color:var(--accent)">${taken} / ${limit}</span>
+          </div>
+          <div class="seat-bar" style="height:8px;margin-bottom:2.5rem;background:rgba(255,255,255,0.05);border-radius:10px;overflow:hidden">
+            <div class="seat-fill" style="width:${pct}%;height:100%;background:var(--accent-gradient);border-radius:10px"></div>
           </div>
           ${actionBtn}
         </div>
@@ -363,22 +464,64 @@ function viewEvent(eventId) {
 function openRegisterModal(eventId) {
   const event = Store.getEvent(eventId);
   if (!event) return;
-  const user  = Auth.current();
+  const user = Auth.current();
 
   document.getElementById('reg-event-name').textContent = event.name;
   document.getElementById('reg-event-id').value = eventId;
-  document.getElementById('reg-name').value = user ? user.name : '';
-  document.getElementById('reg-email-val').value = user ? user.email : '';
-  document.getElementById('reg-department').value = user ? (user.department || '') : '';
+  
+  if (user) {
+    // Show Quick Section
+    document.getElementById('quick-reg-section').classList.remove('hidden');
+    document.getElementById('manual-reg-section').classList.add('hidden');
+    
+    document.getElementById('quick-reg-name').textContent = user.name;
+    document.getElementById('quick-reg-dept').textContent = user.department || 'Not Set';
+    
+    // Check if profile is complete (needs roll number)
+    if (!user.roll && !user.rollNumber) {
+      document.getElementById('quick-reg-dept').innerHTML = `<span style="color:var(--red)">Incomplete Profile (Missing Roll No)</span>`;
+    }
 
-  // Pre-select category
-  document.querySelectorAll('.radio-option').forEach(opt => {
-    opt.classList.remove('selected');
-    if (user && opt.dataset.value === user.category) opt.classList.add('selected');
-  });
-  document.getElementById('reg-category').value = user ? (user.category || '') : '';
+    // Pre-fill manual form in background
+    document.getElementById('reg-name').value = user.name;
+    document.getElementById('reg-email-val').value = user.email;
+    document.getElementById('reg-roll').value = user.roll || user.rollNumber || '';
+    document.getElementById('reg-department').value = user.department || '';
+    document.getElementById('reg-category').value = user.category || '';
+    
+    // Pre-select category in manual form
+    if (user.category) {
+      const catVal = user.category;
+      document.querySelectorAll('#manual-reg-section .radio-option').forEach(opt => {
+        opt.classList.toggle('selected', opt.onclick.toString().includes(catVal));
+      });
+    }
+  } else {
+    // Guest view: Show Manual Form
+    document.getElementById('quick-reg-section').classList.add('hidden');
+    document.getElementById('manual-reg-section').classList.remove('hidden');
+    
+    document.getElementById('reg-name').value = '';
+    document.getElementById('reg-email-val').value = '';
+    document.getElementById('reg-roll').value = '';
+    document.getElementById('reg-department').value = '';
+    document.getElementById('reg-category').value = '';
+    document.querySelectorAll('#manual-reg-section .radio-option').forEach(opt => opt.classList.remove('selected'));
+  }
 
   Modal.open('register-modal');
+}
+
+function toggleManualReg(show) {
+  const quick = document.getElementById('quick-reg-section');
+  const manual = document.getElementById('manual-reg-section');
+  if (show) {
+    quick.classList.add('hidden');
+    manual.classList.remove('hidden');
+  } else {
+    quick.classList.remove('hidden');
+    manual.classList.add('hidden');
+  }
 }
 
 function viewMyRegistration(eventId) {
@@ -388,30 +531,52 @@ function viewMyRegistration(eventId) {
   const event = Store.getEvent(eventId);
   if (!reg || !event) return;
 
+  const regId = reg.id || reg._id;
+
   document.getElementById('my-reg-content').innerHTML = `
-    <div style="text-align:center;margin-bottom:1.5rem">
-      <div style="font-size:2.5rem;margin-bottom:0.5rem">${event.emoji || '📅'}</div>
-      <h3>${event.name}</h3>
-      <span class="badge ${getCategoryBadgeClass(event.category)}">${event.category}</span>
-    </div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;margin-bottom:1.5rem">
-      <div class="card" style="padding:1rem"><div class="text-xs text-muted">Student</div><div style="font-weight:600">${reg.userName}</div></div>
-      <div class="card" style="padding:1rem"><div class="text-xs text-muted">Department</div><div style="font-weight:600">${reg.department}</div></div>
-      <div class="card" style="padding:1rem"><div class="text-xs text-muted">Email</div><div style="font-weight:600">${reg.email || '—'}</div></div>
-      <div class="card" style="padding:1rem"><div class="text-xs text-muted">Category</div><div style="font-weight:600">${reg.category}</div></div>
-      <div class="card" style="padding:1rem"><div class="text-xs text-muted">Attendance</div><div style="font-weight:600">${reg.attended ? '✅ Present' : '⏳ Pending'}</div></div>
-    </div>
-    <div class="qr-container">
-      <div class="text-sm text-muted mb-1">Your Entry QR Code</div>
-      <div class="qr-wrapper"><div id="my-reg-qr"></div></div>
-      <div class="qr-info">
-        <div class="qr-id">${reg.id}</div>
-        <div class="text-xs text-muted mt-1">Show this at the venue for entry</div>
+    <div style="text-align:center;margin-bottom:2rem;padding-top:1rem">
+      <div style="font-size:3.5rem;margin-bottom:1rem;filter:drop-shadow(0 0 20px rgba(255,255,255,0.1))">${event.emoji || '🎭'}</div>
+      <h3 style="font-family:'Outfit';font-size:1.75rem;font-weight:800;color:#fff;margin-bottom:0.5rem;letter-spacing:-0.02em">${event.name}</h3>
+      <div style="display:inline-block;background:rgba(167,139,250,0.1);color:#a78bfa;padding:0.4rem 1rem;border-radius:30px;font-size:0.7rem;font-weight:800;letter-spacing:0.1em;text-transform:uppercase;border:1px solid rgba(167,139,250,0.2)">
+        ${event.category}
       </div>
-      <button class="btn btn-secondary btn-sm" onclick="downloadQR('${reg.id}', '${event.name}')">⬇️ Download QR</button>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:1.5rem;margin-bottom:2.5rem;padding:0 1rem">
+      <div>
+        <div style="font-size:0.75rem;font-weight:700;color:var(--text-muted);margin-bottom:0.25rem;text-transform:uppercase;letter-spacing:0.05em">Student</div>
+        <div style="font-weight:700;font-size:1.1rem;color:#fff">${reg.userName}</div>
+      </div>
+      <div>
+        <div style="font-size:0.75rem;font-weight:700;color:var(--text-muted);margin-bottom:0.25rem;text-transform:uppercase;letter-spacing:0.05em">Roll No.</div>
+        <div style="font-weight:700;font-size:1.1rem;color:#fff">${reg.roll || '—'}</div>
+      </div>
+      <div>
+        <div style="font-size:0.75rem;font-weight:700;color:var(--text-muted);margin-bottom:0.25rem;text-transform:uppercase;letter-spacing:0.05em">Department</div>
+        <div style="font-weight:700;font-size:1.1rem;color:#fff">${reg.department}</div>
+      </div>
+      <div>
+        <div style="font-size:0.75rem;font-weight:700;color:var(--text-muted);margin-bottom:0.25rem;text-transform:uppercase;letter-spacing:0.05em">Category</div>
+        <div style="font-weight:700;font-size:1.1rem;color:#fff">${reg.category}</div>
+      </div>
+    </div>
+
+    <div class="qr-container" style="background:transparent;border:none;padding:0">
+      <div style="font-size:0.75rem;font-weight:700;color:var(--text-muted);margin-bottom:1rem;text-transform:uppercase;letter-spacing:0.1em">Your Entry QR Code</div>
+      <div class="qr-wrapper" style="background:#fff;padding:1.5rem;border-radius:24px;display:inline-block;box-shadow:0 20px 50px rgba(0,0,0,0.5);border:1px solid rgba(255,255,255,0.1)">
+        <div id="my-reg-qr"></div>
+      </div>
+      <div style="margin-top:1.5rem;text-align:center">
+        <div style="font-family:monospace;font-size:0.9rem;color:rgba(255,255,255,0.6);letter-spacing:0.1em;background:rgba(255,255,255,0.03);padding:0.5rem 1rem;border-radius:8px;display:inline-block">${regId}</div>
+        <div style="font-size:0.8rem;color:var(--text-muted);margin-top:0.75rem">Show this at the venue for entry</div>
+      </div>
+      <div style="margin-top:2rem;display:flex;gap:0.75rem">
+        <button class="btn btn-primary" style="flex:1;padding:1rem" onclick="downloadQR('${regId}', '${event.name}')">⬇️ Download Ticket</button>
+        ${reg.attended ? `<button class="btn btn-secondary" style="flex:1;padding:1rem;background:var(--accent-gradient);color:#000;border:none;font-weight:800" onclick="generateCertificate('${reg.id}')">📜 Certificate</button>` : ''}
+      </div>
     </div>`;
   Modal.open('my-reg-modal');
-  setTimeout(() => generateQR('my-reg-qr', JSON.stringify({ regId: reg.id, eventId, userId: user.id, name: reg.userName })), 100);
+  setTimeout(() => generateQR('my-reg-qr', JSON.stringify({ regId, eventId, userId: user.id, name: reg.userName, roll: reg.roll })), 100);
 }
 
 // =============================================
@@ -544,7 +709,9 @@ function formatTime(timeStr) {
 
 function isPast(dateStr) {
   if (!dateStr) return false;
-  return new Date(dateStr).getTime() < new Date().setHours(0,0,0,0);
+  const today = new Date(); today.setHours(0,0,0,0);
+  const d = new Date(dateStr); d.setHours(0,0,0,0);
+  return d < today;
 }
 
 function timeUntil(dateStr, timeStr) {
@@ -564,6 +731,64 @@ function timeUntil(dateStr, timeStr) {
 
 function genId(prefix = 'id') {
   return `${prefix}_${Math.random().toString(36).substr(2, 9)}`;
+}
+
+// switchAuthTab is defined in pages.js
+
+
+// =============================================
+// ADMIN AUTHORITY: INSTANT TOGGLE
+// =============================================
+async function toggleRegistration(eventId, open) {
+  try {
+    await Store.updateEvent(eventId, { registrationOpen: open });
+    Toast.success(`Registration ${open ? 'Started 🚀' : 'Stopped 🛑'}`);
+    Router.render(Router.current);
+  } catch (e) {
+    Toast.error('Failed to update authority status');
+  }
+}
+
+// =============================================
+// BOOKMARK SYSTEM (localStorage)
+// =============================================
+const Bookmarks = {
+  _key() {
+    const user = Auth.current();
+    return user ? `bookmarks_${user.id}` : 'bookmarks_guest';
+  },
+  getAll() {
+    try { return JSON.parse(localStorage.getItem(this._key()) || '[]'); }
+    catch { return []; }
+  },
+  isBookmarked(eventId) {
+    return this.getAll().includes(eventId);
+  },
+  toggle(eventId) {
+    const list = this.getAll();
+    const idx  = list.indexOf(eventId);
+    if (idx === -1) {
+      list.push(eventId);
+      localStorage.setItem(this._key(), JSON.stringify(list));
+      return true; // added
+    } else {
+      list.splice(idx, 1);
+      localStorage.setItem(this._key(), JSON.stringify(list));
+      return false; // removed
+    }
+  },
+  count() { return this.getAll().length; }
+};
+
+function toggleBookmark(eventId, btn) {
+  const added = Bookmarks.toggle(eventId);
+  if (btn) {
+    btn.classList.toggle('saved', added);
+    btn.title = added ? 'Remove from Saved' : 'Save Event';
+  }
+  Toast.show(added ? '❤️ Event saved!' : '💔 Removed from saved', added ? 'success' : 'info', 2000);
+  // Refresh sidebar badge
+  updateNav(Router.current, Auth.current());
 }
 
 

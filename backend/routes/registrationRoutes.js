@@ -4,7 +4,7 @@ const { registerForEvent, getRegistrations, markAttendance } = require('../contr
 const { protect, admin } = require('../middleware/authMiddleware');
 
 router.route('/')
-  .post(protect, registerForEvent)
+  .post(registerForEvent)           // Public: no login needed to register for events
   .get(protect, getRegistrations);
 
 router.route('/:id/attendance')

@@ -10,8 +10,8 @@ const seedData = async () => {
     // ── Demo Users ──────────────────────────────────────────
     const admin = await User.create({
       name: 'Admin User',
-      email: 'admin@demo.com',
-      password: 'admin123',
+      email: 'jatinsharma00877@gmail.com',
+      password: 'Jatin@00877',
       role: 'admin',
       department: 'Administration',
       category: 'Day Scholar',
@@ -107,9 +107,41 @@ const seedData = async () => {
         organizer: admin.name,
         createdBy: admin._id,
       },
+      {
+        name: 'Battle of Bands 🎸',
+        description: 'The ultimate music showdown is back! Bands from all departments compete for the crown. Expect electrifying performances, live instruments, and a crowd that goes wild. Register your band or just come to vibe!',
+        date: futureDate(18),
+        time: '17:00',
+        location: 'Open Air Theatre, Main Campus',
+        category: 'Cultural',
+        seatLimit: 400,
+        registrationOpen: true,
+        isPinned: true,
+        emoji: '🎸',
+        bannerColor: 'linear-gradient(135deg,#1a0028,#4a0060)',
+        club: 'Music Club',
+        organizer: admin.name,
+        createdBy: admin._id,
+      },
+      {
+        name: 'Bikeathon 2025 🏍️',
+        description: 'The college\'s most thrilling annual bike rally! Riders raced 50km through scenic routes, raising funds for student welfare. An unforgettable experience of speed, stamina and sportsmanship.',
+        date: (() => { const d = new Date(today); d.setDate(d.getDate() - 20); return fmt(d); })(),
+        time: '06:30',
+        location: 'College Main Gate → City Circuit → Campus',
+        category: 'Sports',
+        seatLimit: 100,
+        registrationOpen: false,
+        statusOverride: 'Past',
+        emoji: '🏍️',
+        bannerColor: 'linear-gradient(135deg,#0a1a00,#1a3a00)',
+        club: 'Adventure Club',
+        organizer: admin.name,
+        createdBy: admin._id,
+      },
     ]);
 
-    console.log('✅ Demo data seeded: 2 users + 5 events');
+    console.log('✅ Demo data seeded: 2 users + 7 events');
   } catch (err) {
     console.error('❌ Seeder error:', err.message);
   }

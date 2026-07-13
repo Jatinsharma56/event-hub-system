@@ -16,14 +16,14 @@ const storage = multer.diskStorage({
 });
 
 function checkFileType(file, cb) {
-  const filetypes = /jpg|jpeg|png/;
+  const filetypes = /jpg|jpeg|png|webp|gif|mp4|webm|mov|ogg/;
   const extname = filetypes.test(path.extname(file.originalname).toLowerCase());
-  const mimetype = filetypes.test(file.mimetype);
+  const mimetype = file.mimetype.startsWith('image/') || file.mimetype.startsWith('video/');
 
   if (extname && mimetype) {
     return cb(null, true);
   } else {
-    cb('Images only!');
+    cb('Error: Images and Videos only!');
   }
 }
 

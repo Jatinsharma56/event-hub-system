@@ -7,7 +7,7 @@
   <meta name="description" content="Smart Event Management System for colleges — register, scan QR, track attendance, and get AI insights.">
 
   <!-- ─── STYLES ─── -->
-  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/style.css?v=2">
 
   <!-- ─── FONTS (loaded async via CSS @import) ─── -->
 
@@ -74,63 +74,79 @@
     <div class="modal">
       <div class="modal-header">
         <div>
-          <div class="modal-title">Register for Event</div>
+          <div class="modal-title">Registration</div>
           <div class="text-sm text-muted" id="reg-event-name">—</div>
         </div>
         <button class="modal-close" onclick="Modal.close('register-modal')">✕</button>
       </div>
-      <input type="hidden" id="reg-event-id">
-      <div class="form-group">
-        <label class="form-label">Full Name *</label>
-        <input type="text" class="form-control" id="reg-name" placeholder="Your full name">
+
+      <!-- QUICK CONFIRMATION (for logged in students) -->
+      <div id="quick-reg-section" class="hidden" style="text-align:center;padding:1rem 0">
+        <div style="font-size:3.5rem;margin-bottom:1rem;animation: bounce 2s infinite">🎟️</div>
+        <h3 style="font-family:'Outfit';font-size:1.5rem;margin-bottom:0.5rem">Ready to join?</h3>
+        <p style="color:var(--text-secondary);font-size:0.9rem;margin-bottom:2rem">We'll use your profile details for an instant booking.</p>
+        
+        <div style="background:rgba(255,255,255,0.03);padding:1.25rem;border-radius:16px;text-align:left;margin-bottom:2rem;border:1px solid var(--border)">
+          <div style="display:flex;justify-content:space-between;margin-bottom:0.75rem;align-items:center">
+            <span style="font-size:0.65rem;font-weight:800;color:var(--text-muted);letter-spacing:0.1em">STUDENT</span>
+            <span id="quick-reg-name" style="font-weight:700;color:#fff">Loading...</span>
+          </div>
+          <div style="display:flex;justify-content:space-between;align-items:center">
+            <span style="font-size:0.65rem;font-weight:800;color:var(--text-muted);letter-spacing:0.1em">DEPARTMENT</span>
+            <span id="quick-reg-dept" style="font-weight:700;color:var(--accent)">Loading...</span>
+          </div>
+        </div>
+
+        <button class="btn btn-primary" style="width:100%;padding:1.1rem;font-size:1rem;box-shadow:0 10px 30px var(--accent-glow)" onclick="submitRegistration()">Claim My Spot 🚀</button>
+        <button class="btn btn-ghost btn-sm" style="margin-top:1.5rem;opacity:0.6" onclick="toggleManualReg(true)">Edit Details Manually</button>
       </div>
-      <div class="form-row">
+
+      <!-- MANUAL FORM (for guests or editing) -->
+      <div id="manual-reg-section">
+        <input type="hidden" id="reg-event-id">
         <div class="form-group">
-          <label class="form-label">Roll Number *</label>
-          <input type="text" class="form-control" id="reg-roll" placeholder="Your college roll number">
+          <label class="form-label">Full Name *</label>
+          <input type="text" class="form-control" id="reg-name" placeholder="Your full name">
         </div>
-        <div class="form-group">
-          <label class="form-label">Email Address *</label>
-          <input type="email" class="form-control" id="reg-email-val" placeholder="yourname@gmail.com">
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Roll Number *</label>
+            <input type="text" class="form-control" id="reg-roll" placeholder="College roll number">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Email Address *</label>
+            <input type="email" class="form-control" id="reg-email-val" placeholder="yourname@gmail.com">
+          </div>
         </div>
-      </div>
-      <div class="form-row">
-        <div class="form-group">
-          <label class="form-label">Department *</label>
-          <select class="form-control" id="reg-department">
-            <option value="">Select Department</option>
-            <option>BCA</option>
-            <option>BTech CSE</option>
-            <option>Nursing</option>
-            <option>Pharmacy</option>
-            <option>Other</option>
-          </select>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Department *</label>
+            <select class="form-control" id="reg-department">
+              <option value="">Select Department</option>
+              <option>BCA</option>
+              <option>BTech CSE</option>
+              <option>Nursing</option>
+              <option>Pharmacy</option>
+              <option>Other</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Category *</label>
+            <div class="radio-group" style="display:grid;grid-template-columns:1fr 1fr;gap:0.5rem">
+              <label class="radio-option" data-value="Day Scholar" onclick="selectRegCat(this,'Day Scholar')">
+                <input type="radio" name="reg-cat"> 🏠 Day Scholar
+              </label>
+              <label class="radio-option" data-value="Hosteller" onclick="selectRegCat(this,'Hosteller')">
+                <input type="radio" name="reg-cat"> 🏢 Hosteller
+              </label>
+            </div>
+            <input type="hidden" id="reg-category">
+          </div>
         </div>
-        <div class="form-group">
-          <label class="form-label">Year</label>
-          <select class="form-control">
-            <option>1st Year</option>
-            <option>2nd Year</option>
-            <option>3rd Year</option>
-            <option>4th Year</option>
-          </select>
+        <div style="display:flex;gap:0.75rem;justify-content:flex-end;margin-top:1.5rem">
+          <button class="btn btn-ghost" onclick="Modal.close('register-modal')">Cancel</button>
+          <button class="btn btn-primary" onclick="submitRegistration()">Confirm & Join →</button>
         </div>
-      </div>
-      <div class="form-group">
-        <label class="form-label">Category *</label>
-        <div class="radio-group">
-          <label class="radio-option" onclick="selectRegCat(this,'Day Scholar')">
-            <input type="radio" name="reg-cat"> 🏠 Day Scholar
-          </label>
-          <label class="radio-option" onclick="selectRegCat(this,'Hosteller')">
-            <input type="radio" name="reg-cat"> 🏢 Hosteller
-          </label>
-        </div>
-        <input type="hidden" id="reg-category">
-      </div>
-      <div style="display:flex;gap:0.75rem;justify-content:flex-end;margin-top:1rem">
-        <button class="btn btn-ghost" onclick="Modal.close('register-modal')">Cancel</button>
-        <button class="btn btn-primary" onclick="submitRegistration()">Confirm Registration →</button>
       </div>
     </div>
   </div>
@@ -204,10 +220,14 @@
         <div class="form-row">
           <div class="form-group">
             <label class="form-label">Category *</label>
-            <select class="form-control" id="ev-category" required>
+            <select class="form-control" id="ev-category" style="background:rgba(0,0,0,0.3);border-radius:12px">
               <option value="">Select Category</option>
               <option>Tech</option>
               <option>Cultural</option>
+              <option>Music Concert</option>
+              <option>DJ Night</option>
+              <option>College Fest</option>
+              <option>Gaming</option>
               <option>Sports</option>
               <option>Workshop</option>
               <option>Seminar</option>
@@ -224,11 +244,31 @@
             <label class="form-label">Registration Deadline</label>
             <input type="date" class="form-control" id="ev-deadline">
           </div>
-          <div class="form-group" style="display:flex;align-items:flex-end;padding-bottom:1.25rem">
+          <div class="form-group">
+            <label class="form-label">Status Override</label>
+            <select class="form-control" id="ev-status">
+              <option value="Auto">Auto (Date Based)</option>
+              <option value="Upcoming">Upcoming</option>
+              <option value="Ongoing">Ongoing</option>
+              <option value="Past">Past</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">✨ Highlight Label <span style="font-weight:400;color:var(--text-muted);text-transform:none;letter-spacing:0">(Short name shown in highlight circle)</span></label>
+          <input type="text" class="form-control" id="ev-highlight" placeholder="e.g. DJ Night, Hackathon, Big Prize">
+        </div>
+        <div class="form-row">
+          <div class="form-group" style="display:flex;align-items:flex-end;padding-bottom:1.25rem;gap:1.5rem">
             <label class="checkbox-label">
               <input type="checkbox" id="ev-registration" checked>
               <span class="custom-checkbox">✓</span>
               Registration Open
+            </label>
+            <label class="checkbox-label">
+              <input type="checkbox" id="ev-pinned">
+              <span class="custom-checkbox">⭐</span>
+              Pin to Featured
             </label>
           </div>
         </div>
@@ -272,10 +312,95 @@
     </div>
   </div>
 
+  <!-- ─── HIGHLIGHTS GALLERY MODAL ─── -->
+  <div class="modal-overlay" id="highlights-gallery-overlay" onclick="closeHighlightsGallery(event)" style="position:fixed;inset:0;z-index:9000;background:rgba(0,0,0,0.95);backdrop-filter:blur(20px)">
+    <div style="position:relative;width:100%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center" onclick="event.stopPropagation()">
+      <!-- Close -->
+      <button onclick="closeHighlightsGallery()" style="position:absolute;top:1.5rem;right:1.5rem;background:rgba(255,255,255,0.1);border:none;color:#fff;font-size:1.5rem;width:48px;height:48px;border-radius:50%;cursor:pointer;z-index:10;display:flex;align-items:center;justify-content:center">✕</button>
+      <!-- Header -->
+      <div id="hl-gallery-header" style="text-align:center;margin-bottom:2rem;z-index:10">
+        <div id="hl-gallery-cover-wrap" style="width:72px;height:72px;border-radius:50%;padding:3px;background:linear-gradient(135deg,#f59e0b,#fbbf24);margin:0 auto 1rem">
+          <div id="hl-gallery-avatar" style="width:100%;height:100%;border-radius:50%;background:center/cover;display:flex;align-items:center;justify-content:center;font-size:1.75rem;border:3px solid #000"></div>
+        </div>
+        <div id="hl-gallery-title" style="font-family:'Outfit';font-size:1.5rem;font-weight:800;color:#fff"></div>
+        <div id="hl-gallery-desc" style="font-size:0.85rem;color:rgba(255,255,255,0.5);margin-top:0.25rem"></div>
+      </div>
+      <!-- Progress bar (story style) -->
+      <div id="hl-progress-bar" style="position:absolute;top:1rem;left:1rem;right:4rem;display:flex;gap:4px;z-index:10"></div>
+      <!-- Main Media (Image or Video) -->
+      <div style="position:relative;max-width:520px;width:90%;aspect-ratio:9/16;max-height:70vh">
+        <div id="hl-media-container" style="width:100%;height:100%;border-radius:24px;overflow:hidden;box-shadow:0 30px 80px rgba(0,0,0,0.7);background:#000;position:relative">
+          <!-- Populated dynamically by hlShowMedia() -->
+        </div>
+        <!-- Video badge -->
+        <div id="hl-video-badge" style="display:none;position:absolute;top:1rem;left:1rem;background:rgba(0,0,0,0.6);color:#fff;font-size:0.65rem;font-weight:800;padding:0.3rem 0.75rem;border-radius:20px;letter-spacing:0.1em;backdrop-filter:blur(8px);border:1px solid rgba(255,255,255,0.15)">🎬 VIDEO</div>
+        <!-- Nav Arrows -->
+        <button id="hl-prev" onclick="hlNavPhoto(-1)" style="position:absolute;left:-56px;top:50%;transform:translateY(-50%);background:rgba(255,255,255,0.1);border:none;color:#fff;font-size:1.5rem;width:44px;height:44px;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center">‹</button>
+        <button id="hl-next" onclick="hlNavPhoto(1)" style="position:absolute;right:-56px;top:50%;transform:translateY(-50%);background:rgba(255,255,255,0.1);border:none;color:#fff;font-size:1.5rem;width:44px;height:44px;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center">›</button>
+        <!-- Counter -->
+        <div id="hl-counter" style="position:absolute;bottom:1rem;right:1rem;background:rgba(0,0,0,0.6);color:#fff;font-size:0.75rem;font-weight:700;padding:0.25rem 0.75rem;border-radius:20px"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─── HIGHLIGHT CREATION MODAL (ADMIN) ─── -->
+  <div class="modal-overlay" id="highlight-modal-overlay" style="position:fixed;inset:0;z-index:8000;background:rgba(0,0,0,0.85);backdrop-filter:blur(20px)">
+    <div class="modal" style="max-width:580px;width:92%">
+      <div class="modal-header">
+        <h2 class="modal-title">✨ <span id="hl-modal-title-text">New Highlight</span></h2>
+        <button class="modal-close" onclick="closeHighlightModal()">✕</button>
+      </div>
+      <form id="highlight-form" onsubmit="return false">
+        <input type="hidden" id="hl-id">
+        <div class="form-group">
+          <label class="form-label">Highlight Title</label>
+          <input type="text" class="form-control" id="hl-title" placeholder="e.g. DJ Night 2025 🎧">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Cover Image URL</label>
+          <div style="display:flex;gap:0.5rem">
+            <input type="text" class="form-control" id="hl-cover" placeholder="https://... (best: square image)">
+            <input type="file" id="hl-cover-file" style="display:none" onchange="uploadMediaHandler(this, 'hl-cover', false)">
+            <button class="btn btn-secondary btn-icon" onclick="document.getElementById('hl-cover-file').click()" title="Upload cover image">📁</button>
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Description <span style="font-weight:400;color:var(--text-muted)">(optional)</span></label>
+          <input type="text" class="form-control" id="hl-desc" placeholder="e.g. 200+ students · 14 May 2025">
+        </div>
+        <div class="form-group">
+          <label class="form-label" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:0.5rem">
+            <span>📸 Media URLs — Photos &amp; Videos <span style="font-weight:400;color:var(--text-muted)">(one per line)</span></span>
+            <div>
+              <input type="file" id="hl-media-files" multiple style="display:none" onchange="uploadMediaHandler(this, 'hl-photos', true)">
+              <button class="btn btn-secondary btn-sm" onclick="document.getElementById('hl-media-files').click()" style="padding:0.4rem 0.75rem;font-size:0.75rem">📁 Upload Media</button>
+            </div>
+          </label>
+          <textarea class="form-control" id="hl-photos" rows="7" placeholder="https://photo1.jpg&#10;https://photo2.jpg&#10;https://clip.mp4&#10;https://reel.mp4"></textarea>
+          <div style="margin-top:0.5rem;font-size:0.72rem;color:var(--text-muted);display:flex;gap:1rem;flex-wrap:wrap">
+            <span>📷 Images: .jpg .png .webp .gif</span>
+            <span>🎬 Videos: .mp4 .webm .mov .ogg</span>
+          </div>
+        </div>
+        <div style="display:flex;gap:0.75rem;justify-content:flex-end;margin-top:1rem">
+          <button class="btn btn-ghost" onclick="closeHighlightModal()">Cancel</button>
+          <button class="btn btn-primary" onclick="saveHighlight()">Save Highlight ✨</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ─── FIREBASE SDK (COMPAT) ─── -->
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-storage-compat.js"></script>
+  <script src="js/firebase-config.js"></script>
+
   <!-- ─── APPLICATION SCRIPTS ─── -->
-  <script src="js/store.js"></script>
-  <script src="js/app.js"></script>
-  <script src="js/pages.js"></script>
+  <script src="js/store.js?v=20260518a"></script>
+  <script src="js/app.js?v=20260518a"></script>
+  <script src="js/pages.js?v=20260518a"></script>
 
   <!-- ─── RADIO HELPERS ─── -->
   <script>

@@ -16,9 +16,11 @@ const registerUser = async (req, res) => {
     const userExists = await User.findOne({ email });
     if (userExists) return res.status(400).json({ message: 'User already exists' });
 
+    // Role is always 'student' on self-registration.
+    // Admin accounts can only be created via the seeder / direct DB access.
     const user = await User.create({
       name, email, password, department, category,
-      role: email === 'admin@demo.com' ? 'admin' : 'student' // Simple admin creation
+      role: 'student'
     });
 
     if (user) {
